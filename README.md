@@ -23,6 +23,7 @@ gcc server.c -o server
 gcc client.c -o client
 ./server # Terminal 1
 ./client # Terminal 2
+
 ---
 
 ### 02 — rawhttp: HTTP/1.1 Client over Raw TCP
