@@ -18,7 +18,7 @@ int main(int argc, char *argv[]) {
 
     char *hostname = argv[1];
     char request[BUFFER_SIZE];
-    char response[BUFFER_SIZE * 4];
+    char full_response[BUFFER_SIZE * 8];
     int sock_fd;
 
     // Step 1: Resolve hostname to IP
@@ -27,7 +27,7 @@ int main(int argc, char *argv[]) {
         printf("Error: could not resolve host '%s'\n", hostname);
         return 1;
     }
-    printf("Resolved %s → %s\n", hostname, 
+    printf("Resolved %s → %s\n", hostname,
            inet_ntoa(*(struct in_addr*)server->h_addr));
 
     // Step 2: Create TCP socket
@@ -59,15 +59,39 @@ int main(int argc, char *argv[]) {
     // Step 5: Send it
     send(sock_fd, request, strlen(request), 0);
 
-    // Step 6: Read response
-    printf("--- RESPONSE ---\n");
-    int bytes;
-    while ((bytes = recv(sock_fd, response, sizeof(response) - 1, 0)) > 0) {
-        response[bytes] = '\0';
-        printf("%s", response);
+    // Step 6: Read full response into buffer
+    int total = 0, bytes;
+    while ((bytes = recv(sock_fd, full_response + total,
+                         sizeof(full_response) - total - 1, 0)) > 0) {
+        total += bytes;
+    }
+    full_response[total] = '\0';
+
+    // Step 7: Split headers and body at \r\n\r\n
+    char *header_end = strstr(full_response, "\r\n\r\n");
+    if (header_end == NULL) {
+        printf("Malformed response\n");
+        close(sock_fd);
+        return 1;
     }
 
-    printf("\n--- DONE ---\n");
+    *header_end = '\0';
+    char *body = header_end + 4;
+
+    // Step 8: Print headers line by line
+    printf("\n=== STATUS ===\n");
+    char *line = strtok(full_response, "\r\n");
+    printf("%s\n", line);
+
+    printf("\n=== HEADERS ===\n");
+    while ((line = strtok(NULL, "\r\n")) != NULL) {
+        printf("  %s\n", line);
+    }
+
+    // Step 9: Print body
+    printf("\n=== BODY ===\n%s\n", body);
+    printf("=== TOTAL BYTES RECEIVED: %d ===\n", total);
+
     close(sock_fd);
     return 0;
 }
